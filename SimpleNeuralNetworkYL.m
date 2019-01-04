@@ -1,130 +1,168 @@
-function [weights,biases,y] = NeuralNetworkMatYL(sizes,trainingX, trainingY, epochs, minibat, eta, choice, testX, testY)
-% Implements neural network with training data;
-% Change each minibatch to a matrix multipliction;
+% adapted from the python program in Neural Network and Deep Learning 
+% by Michael Nielson;
 
-% Input parameters:
-% sizes: a row vecotr, each component of which gives the number of nodes in
-% the corresponding layer.
-% trainingX: trainingX is the input matrix of training data. Its number of 
-% columns is the amount of training data; its number of rows is the number 
-% of components of each input. 
-% trainingY, testX, testY: the same format of trainingX.
-% epochs: number of epochs. If there is test data, after each epoch, use
-% test data to produce an intermediate result. If there is no test data,
-% each epoch is a complete sweep of the training data. The training data is
-% shuffled for the next epoch.
-% minibat: the amount of data in a minibatch, must divide the number of
-% columns of trainingX and trainingY. A minibatch is a set of data to
-% perform a single step of gradient descent. 
-% eta: learning rate;
-% choice: 1=fitting and predicting; 2=classification; we assume that for 1,
-% testX will be given to predict corresponding output y; for 2, testX and
-% testY will be given to check the correctness in each epoch and the output
-% y=0;
-% testX, testY: each a matrix, with each column an input/output data, and 
-% number of columns the amount of input/output data; if both are present, 
-% they should have the same numbers of columns;
+% To fit a function, such as sin(x) using neural network, run, for example,
+% net = NeuralNetwork([1 100 100 1]);
+% net.SGDFit(trainingX,trainingY,epochs,minibat,eta);
+% Then evaluate the NN at a set of input:
+% y = net.forward(evalX);
 
-% Output parameters:
-% weights, biases: parameters fitting the neural network;
-% y: =0 if choice=2; output with input testX if choice=1; it is a matrix 
-% with each column the output of corresponding column of testX;
-
-
-% initializing biases and weights. numLayer is the number of layers except
-% the input layer. Note that the input layer does not need weight or biase.
-
-numLayer = length(sizes)-1;
-weights = cell(1,numLayer);
-biases = cell(1,numLayer);
-for i = 1:numLayer
-    weights{i} = randn(sizes(i+1),sizes(i));
-    biases{i} = randn(sizes(i+1),1);
-end
-
-% the amount of data;
-numData = size(trainingX,2);
-for i = 1:epochs
-    % shuffle traning data for each epoch;
-    tempperm = randperm(numData);
-    trainingX = trainingX(:,tempperm);
-    trainingY = trainingY(:,tempperm);
-    
-    % update weights and biases for each minibatch;
-    for j = 1:(numData/minibat)
-        dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
-        dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
+% To classify, run, for example,
+% net = NeuralNetwork([784 30 10]);
+% net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
+% Note that testY gives the digits, whereas testY+1 gives the indices of
+% ones in the 10-dimensional vectors;
+% 
+classdef NeuralNetwork < handle
+    properties
+        Sizes
+        NumLayers
+        Weights
+        Biases
+    end
+    methods
+        function obj = NeuralNetwork(sizes)
+            obj.Sizes = sizes;
+            obj.NumLayers = length(sizes)-1;
+            weights = cell(1,obj.NumLayers);
+            for i = 1:obj.NumLayers
+                weights{i} = randn(obj.Sizes(i+1),obj.Sizes(i));
+            end
+            obj.Weights = weights;
+            biases = cell(1,obj.NumLayers);
+            for i = 1:obj.NumLayers
+                biases{i} = randn(obj.Sizes(i+1),1);
+            end
+            obj.Biases = biases;
+        end 
+        function a = feedForward(obj,x)
+            a = x;
+            for k = 1:obj.NumLayers
+                a = obj.sigmoid(obj.Weights{k}*a+obj.Biases{k});
+            end          
+        end
+        function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta)
+            % Stochastic Gradient Descent method for fitting problems; for
+            % example, fit y=sin(x) using a neural network;
+            % trainingX: the input matrix of training data. Its number of 
+            % columns is the amount of training data; its number of rows is
+            % the number of components of each input.
+            % trainingY: the output matrix of training data. The format is the
+            % same as trainingX;
+            % epochs: number of epochs to train;
+            % minibat: number of data in a minibatch;
+            % eta: learning rate;
         
-        % for each minibatch, update weights and biases using eta;
-        % feedforward;
-        % z: z=w*a+b, a=activation(z) in each layer;
-        % zs, as: store z and a values for all layers;
-        % Note that the numbers of cells of zs and as are both 1 more than 
-        % the numbers of cells of weights and biases;
-        z = dataX;
-        a = z;  
-        zs = cell(1,numLayer+1);
-        as = cell(1,numLayer+1);
-        zs{1} = z;
-        as{1} = a;
-        for k = 1:numLayer
-            z = weights{k}*a+biases{k};
-            zs{k+1} = z;
-            a = 1./(1+exp(-z));
-            as{k+1} = a;
+            % the amount of data;
+            numData = size(trainingX,2);
+            for i = 1:epochs
+                % shuffle traning data for each epoch;
+                tempperm = randperm(numData);
+                trainingX = trainingX(:,tempperm);
+                trainingY = trainingY(:,tempperm);
+
+                % update weights and biases for each minibatch;
+                for j = 1:(numData/minibat)
+                    dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
+                    dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
+                    obj.updateMinibat(dataX,dataY,eta);
+                end
+                fprintf('Epoch %d complete. \n', i);
+            end
         end
+        function SGDClf(obj,trainingX,trainingY,epochs,minibat,eta,testX,testY)
+            % Stochastic Gradient Descent method for classification problems; 
+            % for example, the digit recognization problem using NN;
+            % trainingX: the input matrix of training data. Its number of 
+            % columns is the amount of training data; its number of rows is
+            % the number of components of each input.
+            % trainingY: the output matrix of training data. The format is the
+            % same as trainingX;
+            % epochs: number of epochs to train;
+            % minibat: number of data in a minibatch;
+            % eta: learning rate;
+            % testX,testY: the same format as trainingX. These are test
+            % data to check the correctness rate of the NN;
+        
+            % the amount of data;
+            numData = size(trainingX,2);
+            for i = 1:epochs
+                % shuffle traning data for each epoch;
+                tempperm = randperm(numData);
+                trainingX = trainingX(:,tempperm);
+                trainingY = trainingY(:,tempperm);
 
-        % backward pass
-        y = dataY;
-        s = 1./(1+exp(-z));
-        sp = s.*(1-s);
-        delta = (as{numLayer+1}-y).*sp;
-        deltab = cell(1,numLayer);
-        deltaw = cell(1,numLayer);
-        deltab{numLayer} = delta;
-        deltaw{numLayer} = delta*as{numLayer}';
-
-        for k = numLayer-1:-1:1
-            z = zs{k+1};
-            % cannot use exp(-z)./((1+exp(-z)).^2); causes infinity
-            % divided by infinity when z is a big negative number;
-            s = 1./(1+exp(-z));
-            sp = s.*(1-s);
-            delta = (weights{k+1}'*delta).*sp;
-            deltab{k} = delta;
-            deltaw{k} = delta*(as{k}');
+                % update weights and biases for each minibatch;
+                for j = 1:(numData/minibat)
+                    dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
+                    dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
+                    obj.updateMinibat(dataX,dataY,eta);
+                end
+                % In this epoch, check how many are correct in test data;
+                y = obj.feedForward(testX);
+                numtestData = size(testX,2);
+                [~,indy] = max(y,[],1);
+                numCorr = sum(indy==testY);
+                fprintf('Epoch %d %d correct out of %d.\n', i, numCorr, numtestData); 
+            end
         end
+        function updateMinibat(obj,dataX,dataY,eta)
+            % for each minibatch, update weights and biases using eta;
+            % dataX,dataY: minibatch of input and output;
+            % eta: learning rate;
+            minibat = size(dataX,2);
+            [sumdeltab,sumdeltaw]=obj.backProp(dataX,dataY);
+            % backward pass
+            obj.Weights = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+            obj.Biases = cellfun(@minus,obj.Biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);      
+        end
+        function [db,dw] = backProp(obj,dataX,dataY)
+            % Back propagation procedure to update weights and biases;
+            
+            % feedforward;
+            
+            % z: z=w*a+b, a=activation(z) in each layer;
+            % zs, as: store z and a values for all layers;
+            % Note that the numbers of cells of zs and as are both 1 more than 
+            % the numbers of cells of weights and biases;
+            z = dataX;
+            a = z;  
+            zs = cell(1,obj.NumLayers+1);
+            as = cell(1,obj.NumLayers+1);
+            zs{1} = z;
+            as{1} = a;
+            for k = 1:obj.NumLayers
+                z = obj.Weights{k}*a+obj.Biases{k};
+                zs{k+1} = z;
+                a = obj.sigmoid(z);
+                as{k+1} = a;
+            end
+            y = dataY;
+            delta = (as{obj.NumLayers+1}-y).*obj.sigmoidprime(z);
+            deltab = cell(1,obj.NumLayers);
+            deltaw = cell(1,obj.NumLayers);
+            deltab{obj.NumLayers} = delta;
+            deltaw{obj.NumLayers} = delta*as{obj.NumLayers}';
 
-        sumdeltab = cellfun(@(x)sum(x,2),deltab,'un',0);
-        sumdeltaw = deltaw;
-        weights = cellfun(@minus,weights,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
-        biases = cellfun(@minus,biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);
+            for k = obj.NumLayers-1:-1:1
+                z = zs{k+1};
+                delta = (obj.Weights{k+1}'*delta).*obj.sigmoidprime(z);
+                deltab{k} = delta;
+                deltaw{k} = delta*(as{k}');
+            end
+
+            db = cellfun(@(x)sum(x,2),deltab,'un',0);
+            dw = deltaw;            
+        end
     end
-    % if test data is provided, in this epoch, check how many are correct in test data;
-    if choice == 2
-        numData = size(testX,2);
-        a = testX;
-        for k = 1:numLayer
-            z = weights{k}*a+biases{k};
-            a = 1./(1+exp(-z));
+    methods(Static)
+        function z = sigmoid(x)
+            z = 1./(1+exp(-x));
         end
-        y = a;
-        [~,indy] = max(y,[],1);
-        numCorr = sum(indy==testY);
-        fprintf('Epoch %d %d correct out of %d.\n', i, numCorr, numData); 
-    else
-        fprintf('Epoch %d complete. \n', i);
+        function zp = sigmoidprime(x)
+           % cannot use exp(-z)./((1+exp(-z)).^2); causes infinity
+           % divided by infinity when z is a big negative number;
+           zp = NeuralNetwork.sigmoid(x).*(1-NeuralNetwork.sigmoid(x));
+        end
     end
 end
-if choice == 1
-    a = testX;
-    for k = 1:numLayer
-        z = weights{k}*a+biases{k};
-        a = 1./(1+exp(-z));
-    end
-    y = a;
-else
-    y = 0;
-end
-end
-
