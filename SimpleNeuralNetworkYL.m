@@ -56,56 +56,47 @@ for i = 1:epochs
         dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
         
         % for each minibatch, update weights and biases using eta;
-        sumdeltab = cell(1,numLayer);
-        sumdeltaw = cell(1,numLayer);
-        for m = 1:numLayer
-            sumdeltab{m} = zeros(sizes(m+1),1);
-            sumdeltaw{m} = zeros(sizes(m+1),sizes(m));
+        % feedforward;
+        % z: z=w*a+b, a=activation(z) in each layer;
+        % zs, as: store z and a values for all layers;
+        % Note that the numbers of cells of zs and as are both 1 more than 
+        % the numbers of cells of weights and biases;
+        z = dataX;
+        a = z;  
+        zs = cell(1,numLayer+1);
+        as = cell(1,numLayer+1);
+        zs{1} = z;
+        as{1} = a;
+        for k = 1:numLayer
+            z = weights{k}*a+biases{k};
+            zs{k+1} = z;
+            a = 1./(1+exp(-z));
+            as{k+1} = a;
         end
-        for n = 1:minibat
-                  
-            % feedforward;
-            % z: z=w*a+b, a=activation(z) in each layer;
-            % zs, as: store z and a values for all layers;
-            % Note that the numbers of cells of zs and as are both 1 more than 
-            % the numbers of cells of weights and biases;
-            z = dataX(:,n);
-            a = z;  
-            zs = cell(1,numLayer+1);
-            as = cell(1,numLayer+1);
-            zs{1} = z;
-            as{1} = a;
-            for k = 1:numLayer
-                z = weights{k}*a+biases{k};
-                zs{k+1} = z;
-                a = 1./(1+exp(-z));
-                as{k+1} = a;
-            end
 
-            % backward pass
-            y = dataY(:,n);
+        % backward pass
+        y = dataY;
+        s = 1./(1+exp(-z));
+        sp = s.*(1-s);
+        delta = (as{numLayer+1}-y).*sp;
+        deltab = cell(1,numLayer);
+        deltaw = cell(1,numLayer);
+        deltab{numLayer} = delta;
+        deltaw{numLayer} = delta*as{numLayer}';
+
+        for k = numLayer-1:-1:1
+            z = zs{k+1};
+            % cannot use exp(-z)./((1+exp(-z)).^2); causes infinity
+            % divided by infinity when z is a big negative number;
             s = 1./(1+exp(-z));
             sp = s.*(1-s);
-            delta = (as{numLayer+1}-y).*sp;
-            deltab = cell(1,numLayer);
-            deltaw = cell(1,numLayer);
-            deltab{numLayer} = delta;
-            deltaw{numLayer} = delta*as{numLayer}';
-            
-            for k = numLayer-1:-1:1
-                z = zs{k+1};
-                % cannot use exp(-z)./((1+exp(-z)).^2); causes infinity
-                % divided by infinity when z is a big negative number;
-                s = 1./(1+exp(-z));
-                sp = s.*(1-s);
-                delta = (weights{k+1}'*delta).*sp;
-                deltab{k} = delta;
-                deltaw{k} = delta*(as{k}');
-            end
-            
-            sumdeltab = cellfun(@plus,sumdeltab,deltab,'un',0);
-            sumdeltaw = cellfun(@plus,sumdeltaw,deltaw,'un',0);
+            delta = (weights{k+1}'*delta).*sp;
+            deltab{k} = delta;
+            deltaw{k} = delta*(as{k}');
         end
+
+        sumdeltab = cellfun(@(x)sum(x,2),deltab,'un',0);
+        sumdeltaw = deltaw;
         weights = cellfun(@minus,weights,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
         biases = cellfun(@minus,biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);
     end
