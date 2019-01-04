@@ -1,0 +1,6 @@
+Time comparison of procedural Matlab NN and OOP Matlab NN:
+
+tic; MNISTtest; toc
+Elapsed time is 90.455501 seconds.
+tic; MNISTOOPtest; toc
+Elapsed time is 103.695884 seconds.
