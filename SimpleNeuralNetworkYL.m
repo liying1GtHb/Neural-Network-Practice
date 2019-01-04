@@ -1,5 +1,6 @@
-function [weights,biases,y] = SimpleNeuralNetworkYL(sizes,trainingX, trainingY, epochs, minibat, eta, choice, testX, testY)
+function [weights,biases,y] = NeuralNetworkMatYL(sizes,trainingX, trainingY, epochs, minibat, eta, choice, testX, testY)
 % Implements neural network with training data;
+% Change each minibatch to a matrix multipliction;
 
 % Input parameters:
 % sizes: a row vecotr, each component of which gives the number of nodes in
