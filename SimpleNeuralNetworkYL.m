@@ -1,27 +1,35 @@
 % adapted from the python program in Neural Network and Deep Learning 
 % by Michael Nielson;
 
+% Properties of a Neural Network class:
+% Sizes: a row vector that gives the number of neurons in each layer;
+% NumLayers: number of layers not counting the input layer;
+% Weights and Biases: as name suggested;
+% Cost: cost function. Options are 'Quadratic' and 'CrossEntropy';
+%
+
 % To fit a function, such as sin(x) using neural network, run, for example,
-% net = NeuralNetwork([1 100 100 1]);
+% net = SimpleNeuralNetwork([1 100 100 1],'CrossEntropy');
 % net.SGDFit(trainingX,trainingY,epochs,minibat,eta);
 % Then evaluate the NN at a set of input:
 % y = net.forward(evalX);
 
 % To classify, run, for example,
-% net = NeuralNetwork([784 30 10]);
+% net = SimpleNeuralNetwork([784 30 10],'Quadratic');
 % net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
 % Note that testY gives the digits, whereas testY+1 gives the indices of
 % ones in the 10-dimensional vectors;
 % 
-classdef NeuralNetwork < handle
+classdef SimpleNeuralNetworkYL < handle
     properties
         Sizes
         NumLayers
         Weights
         Biases
+        Cost
     end
     methods
-        function obj = NeuralNetwork(sizes)
+        function obj = SimpleNeuralNetwork(sizes,cost)
             obj.Sizes = sizes;
             obj.NumLayers = length(sizes)-1;
             weights = cell(1,obj.NumLayers);
@@ -34,6 +42,7 @@ classdef NeuralNetwork < handle
                 biases{i} = randn(obj.Sizes(i+1),1);
             end
             obj.Biases = biases;
+            obj.Cost = cost;
         end 
         function a = feedForward(obj,x)
             a = x;
@@ -138,7 +147,12 @@ classdef NeuralNetwork < handle
                 as{k+1} = a;
             end
             y = dataY;
-            delta = (as{obj.NumLayers+1}-y).*obj.sigmoidprime(z);
+            switch obj.Cost
+                case 'Quadratic'
+                    delta = (as{obj.NumLayers+1}-y).*obj.sigmoidprime(z);
+                case 'CrossEntropy'
+                    delta = (as{obj.NumLayers+1}-y);
+            end
             deltab = cell(1,obj.NumLayers);
             deltaw = cell(1,obj.NumLayers);
             deltab{obj.NumLayers} = delta;
