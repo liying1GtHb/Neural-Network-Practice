@@ -9,13 +9,13 @@
 %
 
 % To fit a function, such as sin(x) using neural network, run, for example,
-% net = SimpleNeuralNetwork([1 100 100 1],'CrossEntropy');
+% net = SimpleNeuralNetworkYL([1 100 100 1],'CrossEntropy');
 % net.SGDFit(trainingX,trainingY,epochs,minibat,eta);
 % Then evaluate the NN at a set of input:
 % y = net.forward(evalX);
 
 % To classify, run, for example,
-% net = SimpleNeuralNetwork([784 30 10],'Quadratic');
+% net = SimpleNeuralNetworkYL([784 30 10],'Quadratic');
 % net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
 % Note that testY gives the digits, whereas testY+1 gives the indices of
 % ones in the 10-dimensional vectors;
@@ -29,7 +29,7 @@ classdef SimpleNeuralNetworkYL < handle
         Cost
     end
     methods
-        function obj = SimpleNeuralNetwork(sizes,cost)
+        function obj = SimpleNeuralNetworkYL(sizes,cost)
             obj.Sizes = sizes;
             obj.NumLayers = length(sizes)-1;
             weights = cell(1,obj.NumLayers);
