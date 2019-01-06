@@ -5,7 +5,8 @@
 % Sizes: a row vector that gives the number of neurons in each layer;
 % NumLayers: number of layers not counting the input layer;
 % Weights and Biases: as name suggested;
-% Cost: cost function. Options are 'Quadratic' and 'CrossEntropy';
+% Cost: cost function. The following are the options.
+% 'Quadratic', 'CrossEntropy','SoftMax';
 %
 
 % To fit a function, such as sin(x) using neural network, run, for example,
@@ -47,8 +48,12 @@ classdef SimpleNeuralNetworkYL < handle
         function a = feedForward(obj,x)
             a = x;
             for k = 1:obj.NumLayers
-                a = obj.sigmoid(obj.Weights{k}*a+obj.Biases{k});
-            end          
+                z = obj.Weights{k}*a+obj.Biases{k};
+                a = obj.sigmoid(z);
+            end
+            if strcmp(obj.Cost,'SoftMax') == 1
+                a = exp(z)./sum(exp(z));
+            end
         end
         function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta)
             % Stochastic Gradient Descent method for fitting problems; for
@@ -151,6 +156,9 @@ classdef SimpleNeuralNetworkYL < handle
                 case 'Quadratic'
                     delta = (as{obj.NumLayers+1}-y).*obj.sigmoidprime(z);
                 case 'CrossEntropy'
+                    delta = (as{obj.NumLayers+1}-y);
+                case 'SoftMax'
+                    as{obj.NumLayers+1} = exp(z)./sum(exp(z));
                     delta = (as{obj.NumLayers+1}-y);
             end
             deltab = cell(1,obj.NumLayers);
