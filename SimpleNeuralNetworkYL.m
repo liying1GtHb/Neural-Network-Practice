@@ -7,17 +7,20 @@
 % Weights and Biases: as name suggested;
 % Cost: cost function. The following are the options.
 % 'Quadratic', 'CrossEntropy','SoftMax';
-%
+% 
+
+% In the cost function, use weight decay (L2 regularization);
+% lambda: regularization parameter;
 
 % To fit a function, such as sin(x) using neural network, run, for example,
 % net = SimpleNeuralNetworkYL([1 100 100 1],'CrossEntropy');
-% net.SGDFit(trainingX,trainingY,epochs,minibat,eta);
+% net.SGDFit(trainingX,trainingY,epochs,minibat,eta,lambda);
 % Then evaluate the NN at a set of input:
 % y = net.forward(evalX);
 
 % To classify, run, for example,
 % net = SimpleNeuralNetworkYL([784 30 10],'Quadratic');
-% net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
+% net.SGDClf(trainingX,trainingY,epochs,minibat,eta,lambda,testX,testY+1)
 % Note that testY gives the digits, whereas testY+1 gives the indices of
 % ones in the 10-dimensional vectors;
 % 
@@ -55,7 +58,7 @@ classdef SimpleNeuralNetworkYL < handle
                 a = exp(z)./sum(exp(z));
             end
         end
-        function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta)
+        function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta,lambda)
             % Stochastic Gradient Descent method for fitting problems; for
             % example, fit y=sin(x) using a neural network;
             % trainingX: the input matrix of training data. Its number of 
@@ -66,6 +69,7 @@ classdef SimpleNeuralNetworkYL < handle
             % epochs: number of epochs to train;
             % minibat: number of data in a minibatch;
             % eta: learning rate;
+            % lambda: regularization parameter;
         
             % the amount of data;
             numData = size(trainingX,2);
@@ -79,12 +83,12 @@ classdef SimpleNeuralNetworkYL < handle
                 for j = 1:(numData/minibat)
                     dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
                     dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
-                    obj.updateMinibat(dataX,dataY,eta);
+                    obj.updateMinibat(dataX,dataY,numData,eta,lambda);
                 end
                 fprintf('Epoch %d complete. \n', i);
             end
         end
-        function SGDClf(obj,trainingX,trainingY,epochs,minibat,eta,testX,testY)
+        function SGDClf(obj,trainingX,trainingY,epochs,minibat,eta,lambda,testX,testY)
             % Stochastic Gradient Descent method for classification problems; 
             % for example, the digit recognization problem using NN;
             % trainingX: the input matrix of training data. Its number of 
@@ -97,6 +101,7 @@ classdef SimpleNeuralNetworkYL < handle
             % eta: learning rate;
             % testX,testY: the same format as trainingX. These are test
             % data to check the correctness rate of the NN;
+            % lambda: regularization parameter;
         
             % the amount of data;
             numData = size(trainingX,2);
@@ -110,7 +115,7 @@ classdef SimpleNeuralNetworkYL < handle
                 for j = 1:(numData/minibat)
                     dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
                     dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
-                    obj.updateMinibat(dataX,dataY,eta);
+                    obj.updateMinibat(dataX,dataY,numData,eta,lambda);
                 end
                 % In this epoch, check how many are correct in test data;
                 y = obj.feedForward(testX);
@@ -120,14 +125,14 @@ classdef SimpleNeuralNetworkYL < handle
                 fprintf('Epoch %d %d correct out of %d.\n', i, numCorr, numtestData); 
             end
         end
-        function updateMinibat(obj,dataX,dataY,eta)
+        function updateMinibat(obj,dataX,dataY,numData,eta,lambda)
             % for each minibatch, update weights and biases using eta;
             % dataX,dataY: minibatch of input and output;
             % eta: learning rate;
             minibat = size(dataX,2);
             [sumdeltab,sumdeltaw]=obj.backProp(dataX,dataY);
             % backward pass
-            obj.Weights = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+            obj.Weights = cellfun(@minus,cellfun(@(x)x*(1-eta*lambda/numData),obj.Weights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
             obj.Biases = cellfun(@minus,obj.Biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);      
         end
         function [db,dw] = backProp(obj,dataX,dataY)
