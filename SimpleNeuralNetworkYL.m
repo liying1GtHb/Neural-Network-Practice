@@ -7,20 +7,22 @@
 % Weights and Biases: as name suggested;
 % Cost: cost function. The following are the options.
 % 'Quadratic', 'CrossEntropy','SoftMax';
-% 
+% Regularization: the options are 'L1','L2', and 'DropOut'. If no
+% regularization is preferred, use either 'L1' or 'L2' with lambda=0;
+% lambda: regularization parameter for 'L1' or 'L2'. If 
+% regularization='Dropout', set lambda=0;
 
 % In the cost function, use weight decay (L2 regularization);
-% lambda: regularization parameter;
 
 % To fit a function, such as sin(x) using neural network, run, for example,
-% net = SimpleNeuralNetworkYL([1 100 100 1],'CrossEntropy');
+% net = SimpleNeuralNetworkYL([1 100 100 1],'CrossEntropy','L1',1);
 % net.SGDFit(trainingX,trainingY,epochs,minibat,eta,lambda);
 % Then evaluate the NN at a set of input:
 % y = net.forward(evalX);
 
 % To classify, run, for example,
-% net = SimpleNeuralNetworkYL([784 30 10],'Quadratic');
-% net.SGDClf(trainingX,trainingY,epochs,minibat,eta,lambda,testX,testY+1)
+% net = SimpleNeuralNetworkYL([784 30 10],'Quadratic','L2',5);
+% net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
 % Note that testY gives the digits, whereas testY+1 gives the indices of
 % ones in the 10-dimensional vectors;
 % 
@@ -31,9 +33,11 @@ classdef SimpleNeuralNetworkYL < handle
         Weights
         Biases
         Cost
+        Regularization
+        Lambda
     end
     methods
-        function obj = SimpleNeuralNetworkYL(sizes,cost)
+        function obj = SimpleNeuralNetworkYL(sizes,cost,regularization,lambda)
             obj.Sizes = sizes;
             obj.NumLayers = length(sizes)-1;
             weights = cell(1,obj.NumLayers);
@@ -47,6 +51,8 @@ classdef SimpleNeuralNetworkYL < handle
             end
             obj.Biases = biases;
             obj.Cost = cost;
+            obj.Regularization = regularization;
+            obj.Lambda =lambda;
         end 
         function a = feedForward(obj,x)
             a = x;
@@ -58,7 +64,8 @@ classdef SimpleNeuralNetworkYL < handle
                 a = exp(z)./sum(exp(z));
             end
         end
-        function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta,lambda)
+
+        function SGDFit(obj,trainingX,trainingY,epochs,minibat,eta)
             % Stochastic Gradient Descent method for fitting problems; for
             % example, fit y=sin(x) using a neural network;
             % trainingX: the input matrix of training data. Its number of 
@@ -83,12 +90,12 @@ classdef SimpleNeuralNetworkYL < handle
                 for j = 1:(numData/minibat)
                     dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
                     dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
-                    obj.updateMinibat(dataX,dataY,numData,eta,lambda);
+                    obj.updateMinibat(dataX,dataY,numData,eta);
                 end
                 fprintf('Epoch %d complete. \n', i);
             end
         end
-        function SGDClf(obj,trainingX,trainingY,epochs,minibat,eta,lambda,testX,testY)
+        function SGDClf(obj,trainingX,trainingY,epochs,minibat,eta,testX,testY)
             % Stochastic Gradient Descent method for classification problems; 
             % for example, the digit recognization problem using NN;
             % trainingX: the input matrix of training data. Its number of 
@@ -115,7 +122,7 @@ classdef SimpleNeuralNetworkYL < handle
                 for j = 1:(numData/minibat)
                     dataX = trainingX(:,((j-1)*minibat+1):j*minibat);
                     dataY = trainingY(:,((j-1)*minibat+1):j*minibat);
-                    obj.updateMinibat(dataX,dataY,numData,eta,lambda);
+                    obj.updateMinibat(dataX,dataY,numData,eta);
                 end
                 % In this epoch, check how many are correct in test data;
                 y = obj.feedForward(testX);
@@ -125,14 +132,19 @@ classdef SimpleNeuralNetworkYL < handle
                 fprintf('Epoch %d %d correct out of %d.\n', i, numCorr, numtestData); 
             end
         end
-        function updateMinibat(obj,dataX,dataY,numData,eta,lambda)
+        function updateMinibat(obj,dataX,dataY,numData,eta)
             % for each minibatch, update weights and biases using eta;
             % dataX,dataY: minibatch of input and output;
             % eta: learning rate;
             minibat = size(dataX,2);
             [sumdeltab,sumdeltaw]=obj.backProp(dataX,dataY);
             % backward pass
-            obj.Weights = cellfun(@minus,cellfun(@(x)x*(1-eta*lambda/numData),obj.Weights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+            if strcmp(obj.Regularization,'L1') == 1
+                wRegu = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta*obj.Lambda/numData,cellfun(@sign,obj.Weights,'un',0),'un',0),'un',0);
+                obj.Weights = cellfun(@minus,wRegu,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+            else
+                obj.Weights = cellfun(@minus,cellfun(@(x)x*(1-eta*obj.Lambda/numData),obj.Weights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+            end
             obj.Biases = cellfun(@minus,obj.Biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);      
         end
         function [db,dw] = backProp(obj,dataX,dataY)
@@ -144,6 +156,15 @@ classdef SimpleNeuralNetworkYL < handle
             % zs, as: store z and a values for all layers;
             % Note that the numbers of cells of zs and as are both 1 more than 
             % the numbers of cells of weights and biases;
+            if strcmp(obj.Regularization,'DropOut') == 1
+                tempWeights = obj.Weights;
+                for k = 1:obj.NumLayers-1
+                    m = obj.Sizes(k+1);
+                    tempperm = randperm(m,floor(m/2));
+                    tempWeights{k}(tempperm,:) = 0;
+                    tempWeights{k+1}(:,tempperm) = 0;
+                end
+            end
             z = dataX;
             a = z;  
             zs = cell(1,obj.NumLayers+1);
@@ -151,7 +172,11 @@ classdef SimpleNeuralNetworkYL < handle
             zs{1} = z;
             as{1} = a;
             for k = 1:obj.NumLayers
-                z = obj.Weights{k}*a+obj.Biases{k};
+                if strcmp(obj.Regularization,'DropOut') == 1
+                    z = tempWeights{k}*a+obj.Biases{k};
+                else
+                    z = obj.Weights{k}*a+obj.Biases{k};
+                end
                 zs{k+1} = z;
                 a = obj.sigmoid(z);
                 as{k+1} = a;
@@ -173,7 +198,11 @@ classdef SimpleNeuralNetworkYL < handle
 
             for k = obj.NumLayers-1:-1:1
                 z = zs{k+1};
-                delta = (obj.Weights{k+1}'*delta).*obj.sigmoidprime(z);
+                if strcmp(obj.Regularization,'DropOut') == 1
+                    delta = (tempWeights{k+1}'*delta).*obj.sigmoidprime(z);
+                else    
+                    delta = (obj.Weights{k+1}'*delta).*obj.sigmoidprime(z);
+                end
                 deltab{k} = delta;
                 deltaw{k} = delta*(as{k}');
             end
