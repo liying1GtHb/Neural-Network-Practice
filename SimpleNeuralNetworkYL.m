@@ -42,7 +42,7 @@ classdef SimpleNeuralNetworkYL < handle
             obj.NumLayers = length(sizes)-1;
             weights = cell(1,obj.NumLayers);
             for i = 1:obj.NumLayers
-                weights{i} = randn(obj.Sizes(i+1),obj.Sizes(i));
+                weights{i} = randn(obj.Sizes(i+1),obj.Sizes(i))/sqrt(sizes(1));
             end
             obj.Weights = weights;
             biases = cell(1,obj.NumLayers);
