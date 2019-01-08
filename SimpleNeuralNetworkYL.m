@@ -9,8 +9,12 @@
 % 'Quadratic', 'CrossEntropy','SoftMax';
 % Regularization: the options are 'L1','L2', and 'DropOut'. If no
 % regularization is preferred, use either 'L1' or 'L2' with lambda=0;
-% lambda: regularization parameter for 'L1' or 'L2'. If 
+% Lambda: regularization parameter for 'L1' or 'L2'. If 
 % regularization='Dropout', set lambda=0;
+% Momentum: whether the training is momentum-based gradient descent;
+% Mu: the momentum coefficient;
+% MWeights: momentum of Weights;
+% MBiases: momentum of Biases;
 
 % In the cost function, use weight decay (L2 regularization);
 
@@ -35,9 +39,16 @@ classdef SimpleNeuralNetworkYL < handle
         Cost
         Regularization
         Lambda
+        Momentum = false
+        Mu = 0
+        MWeights = 0
+        MBiases = 0
     end
     methods
-        function obj = SimpleNeuralNetworkYL(sizes,cost,regularization,lambda)
+        function obj = SimpleNeuralNetworkYL(sizes,cost,regularization,lambda,varargin)
+            % use four input argument if not using momentum; otherwise use
+            % 6 parameters, where the 5th one is 'Momentum', the 6th is the
+            % value of Mu;
             obj.Sizes = sizes;
             obj.NumLayers = length(sizes)-1;
             weights = cell(1,obj.NumLayers);
@@ -53,6 +64,12 @@ classdef SimpleNeuralNetworkYL < handle
             obj.Cost = cost;
             obj.Regularization = regularization;
             obj.Lambda =lambda;
+            if nargin == 6
+                obj.Momentum = true;
+                obj.Mu = varargin{2};
+                obj.MWeights = cellfun(@(x)zeros(size(x)),obj.Weights,'un',0);
+                obj.MBiases = cellfun(@(x)zeros(size(x)),obj.Biases,'un',0);
+            end
         end 
         function a = feedForward(obj,x)
             a = x;
@@ -140,12 +157,28 @@ classdef SimpleNeuralNetworkYL < handle
             [sumdeltab,sumdeltaw]=obj.backProp(dataX,dataY);
             % backward pass
             if strcmp(obj.Regularization,'L1') == 1
-                wRegu = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta*obj.Lambda/numData,cellfun(@sign,obj.Weights,'un',0),'un',0),'un',0);
-                obj.Weights = cellfun(@minus,wRegu,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                if obj.Momentum
+                    obj.MWeights = cellfun(@minus,cellfun(@(x)x*obj.Mu,obj.MWeights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                    wRegu = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta*obj.Lambda/numData,cellfun(@sign,obj.Weights,'un',0),'un',0),'un',0);
+                    obj.Weights = cellfun(@plus,wRegu,obj.MWeights,'un',0);
+                else
+                    wRegu = cellfun(@minus,obj.Weights,cellfun(@(x)x*eta*obj.Lambda/numData,cellfun(@sign,obj.Weights,'un',0),'un',0),'un',0);
+                    obj.Weights = cellfun(@minus,wRegu,cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                end
             else
-                obj.Weights = cellfun(@minus,cellfun(@(x)x*(1-eta*obj.Lambda/numData),obj.Weights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                if obj.Momentum
+                    obj.MWeights = cellfun(@minus,cellfun(@(x)x*obj.Mu,obj.MWeights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                    obj.Weights = cellfun(@plus,obj.Weights,obj.MWeights,'un',0);
+                else
+                    obj.Weights = cellfun(@minus,cellfun(@(x)x*(1-eta*obj.Lambda/numData),obj.Weights,'un',0),cellfun(@(x)x*eta/minibat,sumdeltaw,'un',0),'un',0);
+                end
             end
-            obj.Biases = cellfun(@minus,obj.Biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);      
+            if obj.Momentum
+                obj.MBiases = cellfun(@minus,cellfun(@(x)x*obj.Mu,obj.MBiases,'un',0),cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);
+                obj.Biases = cellfun(@plus,obj.Biases,obj.MBiases,'un',0);
+            else
+                obj.Biases = cellfun(@minus,obj.Biases,cellfun(@(x)x*eta/minibat,sumdeltab,'un',0),'un',0);      
+            end
         end
         function [db,dw] = backProp(obj,dataX,dataY)
             % Back propagation procedure to update weights and biases;
