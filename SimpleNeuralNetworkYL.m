@@ -5,6 +5,8 @@
 % Sizes: a row vector that gives the number of neurons in each layer;
 % NumLayers: number of layers not counting the input layer;
 % Weights and Biases: as name suggested;
+% Activation: activation function; choices are: 'sigmoid','tanh','rectify';
+% ActivationDerivative: the derivative function of the activation function;
 % Cost: cost function. The following are the options.
 % 'Quadratic', 'CrossEntropy','SoftMax';
 % Regularization: the options are 'L1','L2', and 'DropOut'. If no
@@ -19,13 +21,13 @@
 % In the cost function, use weight decay (L2 regularization);
 
 % To fit a function, such as sin(x) using neural network, run, for example,
-% net = SimpleNeuralNetworkYL([1 100 100 1],'CrossEntropy','L1',1);
+% net = SimpleNeuralNetworkYL([1 100 100 1],'sigmoid','CrossEntropy','L1',1);
 % net.SGDFit(trainingX,trainingY,epochs,minibat,eta,lambda);
 % Then evaluate the NN at a set of input:
 % y = net.forward(evalX);
 
 % To classify, run, for example,
-% net = SimpleNeuralNetworkYL([784 30 10],'Quadratic','L2',5);
+% net = SimpleNeuralNetworkYL([784 30 10],'sigmoid','Quadratic','L2',5);
 % net.SGDClf(trainingX,trainingY,epochs,minibat,eta,testX,testY+1)
 % Note that testY gives the digits, whereas testY+1 gives the indices of
 % ones in the 10-dimensional vectors;
@@ -36,6 +38,8 @@ classdef SimpleNeuralNetworkYL < handle
         NumLayers
         Weights
         Biases
+        Activation
+        ActivationDerivative
         Cost
         Regularization
         Lambda
@@ -45,7 +49,7 @@ classdef SimpleNeuralNetworkYL < handle
         MBiases = 0
     end
     methods
-        function obj = SimpleNeuralNetworkYL(sizes,cost,regularization,lambda,varargin)
+        function obj = SimpleNeuralNetworkYL(sizes,activation,cost,regularization,lambda,varargin)
             % use four input argument if not using momentum; otherwise use
             % 6 parameters, where the 5th one is 'Momentum', the 6th is the
             % value of Mu;
@@ -61,6 +65,8 @@ classdef SimpleNeuralNetworkYL < handle
                 biases{i} = randn(obj.Sizes(i+1),1);
             end
             obj.Biases = biases;
+            obj.Activation = activation;
+            obj.ActivationDerivative = strcat(activation,'prime');
             obj.Cost = cost;
             obj.Regularization = regularization;
             obj.Lambda =lambda;
@@ -75,7 +81,7 @@ classdef SimpleNeuralNetworkYL < handle
             a = x;
             for k = 1:obj.NumLayers
                 z = obj.Weights{k}*a+obj.Biases{k};
-                a = obj.sigmoid(z);
+                a = obj.(obj.Activation)(z);
             end
             if strcmp(obj.Cost,'SoftMax') == 1
                 a = exp(z)./sum(exp(z));
@@ -211,13 +217,13 @@ classdef SimpleNeuralNetworkYL < handle
                     z = obj.Weights{k}*a+obj.Biases{k};
                 end
                 zs{k+1} = z;
-                a = obj.sigmoid(z);
+                a = obj.(obj.Activation)(z);
                 as{k+1} = a;
             end
             y = dataY;
             switch obj.Cost
                 case 'Quadratic'
-                    delta = (as{obj.NumLayers+1}-y).*obj.sigmoidprime(z);
+                    delta = (as{obj.NumLayers+1}-y).*obj.(obj.ActivationDerivative)(z);
                 case 'CrossEntropy'
                     delta = (as{obj.NumLayers+1}-y);
                 case 'SoftMax'
@@ -232,9 +238,9 @@ classdef SimpleNeuralNetworkYL < handle
             for k = obj.NumLayers-1:-1:1
                 z = zs{k+1};
                 if strcmp(obj.Regularization,'DropOut') == 1
-                    delta = (tempWeights{k+1}'*delta).*obj.sigmoidprime(z);
+                    delta = (tempWeights{k+1}'*delta).*obj.(obj.ActivationDerivative)(z);
                 else    
-                    delta = (obj.Weights{k+1}'*delta).*obj.sigmoidprime(z);
+                    delta = (obj.Weights{k+1}'*delta).*obj.(obj.ActivationDerivative)(z);
                 end
                 deltab{k} = delta;
                 deltaw{k} = delta*(as{k}');
@@ -252,6 +258,18 @@ classdef SimpleNeuralNetworkYL < handle
            % cannot use exp(-z)./((1+exp(-z)).^2); causes infinity
            % divided by infinity when z is a big negative number;
            zp = NeuralNetwork.sigmoid(x).*(1-NeuralNetwork.sigmoid(x));
+        end
+        function z = tanh(x)
+            z = 2./(exp(-2*x)+1)-1;
+        end
+        function z = tanhprime(x)
+            z = 4*NeuralNetwork.sigmoid(2*x).*(1-NeuralNetwork.sigmoid(2*x));
+        end
+        function z = rectify(x)
+            z = max(x,0);
+        end
+        function z = rectifyprime(x)
+            z = heaviside(x);
         end
     end
 end
